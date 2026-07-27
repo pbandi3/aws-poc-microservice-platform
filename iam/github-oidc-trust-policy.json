@@ -13,7 +13,7 @@
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:pbandi3/aws-poc-microservice-platform:*"
+          "token.actions.githubusercontent.com:sub": "repo:pbandi3@309149007/aws-poc-microservice-platform@1314266439:*"
         }
       }
     }
