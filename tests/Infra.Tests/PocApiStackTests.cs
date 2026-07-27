@@ -11,7 +11,7 @@ public class PocApiStackTests
     {
         // Code.FromAsset requires an existing path at synth time; point it at this test's
         // output directory so synthesis succeeds without a real Lambda publish artifact.
-        Environment.SetEnvironmentVariable("LAMBDA_ASSET_PATH", AppContext.BaseDirectory);
+        System.Environment.SetEnvironmentVariable("LAMBDA_ASSET_PATH", AppContext.BaseDirectory);
 
         var app = new App();
         var stack = new PocApiStack(app, $"PocApiStack-{environmentName}", new PocApiStackProps

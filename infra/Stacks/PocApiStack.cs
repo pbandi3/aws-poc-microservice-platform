@@ -28,7 +28,7 @@ public sealed class PocApiStack : Stack
         : base(scope, id, props)
     {
         var assetPath =
-            Environment.GetEnvironmentVariable("LAMBDA_ASSET_PATH") ?? DefaultLambdaAssetPath;
+            System.Environment.GetEnvironmentVariable("LAMBDA_ASSET_PATH") ?? DefaultLambdaAssetPath;
 
         var function = new Function(this, "ApiFunction", new FunctionProps
         {

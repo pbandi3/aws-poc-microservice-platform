@@ -10,13 +10,13 @@ var app = new App();
 // Resolution order: CDK context (-c environment=...) then env var, then a safe default.
 var environmentName =
     app.Node.TryGetContext("environment") as string
-    ?? Environment.GetEnvironmentVariable("ENVIRONMENT_NAME")
+    ?? System.Environment.GetEnvironmentVariable("ENVIRONMENT_NAME")
     ?? "dev";
 
 // Application semantic version, surfaced by the API at runtime. Supplied by the CI pipeline.
 var appVersion =
     app.Node.TryGetContext("appVersion") as string
-    ?? Environment.GetEnvironmentVariable("APP_VERSION")
+    ?? System.Environment.GetEnvironmentVariable("APP_VERSION")
     ?? "0.0.0-local";
 
 _ = new PocApiStack(app, $"PocApiStack-{environmentName}", new PocApiStackProps
@@ -27,8 +27,8 @@ _ = new PocApiStack(app, $"PocApiStack-{environmentName}", new PocApiStackProps
     // CDK CLI populates these from the ambient (assumed) credentials at synth time.
     Env = new Amazon.CDK.Environment
     {
-        Account = Environment.GetEnvironmentVariable("CDK_DEFAULT_ACCOUNT"),
-        Region = Environment.GetEnvironmentVariable("CDK_DEFAULT_REGION")
+        Account = System.Environment.GetEnvironmentVariable("CDK_DEFAULT_ACCOUNT"),
+        Region = System.Environment.GetEnvironmentVariable("CDK_DEFAULT_REGION")
     }
 });
 
