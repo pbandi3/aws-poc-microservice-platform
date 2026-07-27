@@ -1,0 +1,59 @@
+# Reusable workflow: compiles the solution and runs the fast test tiers
+# (unit + in-memory integration + CDK infrastructure assertions).
+# Called by pr-validation, deploy-dev, and release so the test gate is defined once.
+name: Build & Test
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore PocMicroservice.sln
+
+      - name: Build
+        run: dotnet build PocMicroservice.sln -c Release --no-restore
+
+      - name: Unit tests
+        run: >
+          dotnet test tests/Api.UnitTests/Api.UnitTests.csproj
+          -c Release --no-build
+          --logger "trx;LogFileName=unit.trx"
+          --results-directory ./TestResults
+          --collect:"XPlat Code Coverage"
+
+      - name: Integration tests (in-memory)
+        run: >
+          dotnet test tests/Api.IntegrationTests/Api.IntegrationTests.csproj
+          -c Release --no-build
+          --logger "trx;LogFileName=integration.trx"
+          --results-directory ./TestResults
+
+      - name: Infrastructure tests (CDK assertions)
+        run: >
+          dotnet test tests/Infra.Tests/Infra.Tests.csproj
+          -c Release --no-build
+          --logger "trx;LogFileName=infra.trx"
+          --results-directory ./TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./TestResults
+          if-no-files-found: ignore

@@ -1,0 +1,65 @@
+# Continuous deployment to the persistent `dev` environment on every push to dev
+# (i.e. when a feature PR merges). Computes a pre-release SemVer via GitVersion.
+name: Deploy Dev
+
+on:
+  push:
+    branches: [dev]
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  test:
+    uses: ./.github/workflows/_build-test.yml
+
+  version:
+    name: Compute version
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      semver: ${{ steps.gitversion.outputs.semVer }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v3
+        with:
+          versionSpec: '6.x'
+      - name: Determine version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v3
+
+  deploy:
+    name: Deploy to dev
+    needs: version
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy dev environment
+        id: deploy
+        uses: ./.github/actions/deploy
+        with:
+          environment: dev
+          app-version: ${{ needs.version.outputs.semver }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-arn: ${{ secrets.AWS_ROLE_ARN }}
+      - name: Smoke tests (live)
+        env:
+          API_BASE_URL: ${{ steps.deploy.outputs.api-url }}
+        run: dotnet test tests/Api.SmokeTests/Api.SmokeTests.csproj -c Release
+      - name: Summary
+        run: |
+          echo "### Dev deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${{ needs.version.outputs.semver }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${{ steps.deploy.outputs.api-url }}" >> "$GITHUB_STEP_SUMMARY"

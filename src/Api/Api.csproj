@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AWSProjectType>Lambda</AWSProjectType>
+    <!-- Assembly name doubles as the Lambda handler when using AddAWSLambdaHosting
+         against the .NET 8 managed runtime. Keep in sync with infra/Stacks/PocApiStack.cs. -->
+    <AssemblyName>Api</AssemblyName>
+    <RootNamespace>PocApi</RootNamespace>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Amazon.Lambda.AspNetCoreServer.Hosting" Version="1.7.0" />
+  </ItemGroup>
+
+</Project>

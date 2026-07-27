@@ -1,0 +1,79 @@
+# Runs on every pull request (feature/*, hotfix/*, dev->main, etc.).
+# 1. Build + unit/integration/infra tests (fast gate).
+# 2. Spin up an ephemeral, PR-scoped environment (pr-<number>).
+# 3. Run live smoke tests against it, then comment the URL on the PR.
+# The environment is torn down by pr-cleanup.yml when the PR is closed.
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write        # required for GitHub OIDC -> AWS
+  contents: read
+  pull-requests: write   # required to comment the ephemeral URL
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  test:
+    uses: ./.github/workflows/_build-test.yml
+
+  ephemeral:
+    name: Ephemeral Env + E2E Smoke
+    needs: test
+    runs-on: ubuntu-latest
+    environment: ephemeral
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy ephemeral environment
+        id: deploy
+        uses: ./.github/actions/deploy
+        with:
+          environment: pr-${{ github.event.pull_request.number }}
+          app-version: 0.0.0-pr.${{ github.event.pull_request.number }}.${{ github.run_number }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Smoke tests (live)
+        env:
+          API_BASE_URL: ${{ steps.deploy.outputs.api-url }}
+        run: dotnet test tests/Api.SmokeTests/Api.SmokeTests.csproj -c Release
+
+      - name: Comment ephemeral URL on PR
+        if: always() && steps.deploy.outputs.api-url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.api-url }}';
+            const marker = '<!-- ephemeral-env -->';
+            const body = `${marker}
+            ### Ephemeral environment ready
+
+            | Item | Value |
+            |------|-------|
+            | Environment | \`pr-${{ github.event.pull_request.number }}\` |
+            | Base URL | ${url} |
+            | Health | ${url}health |
+            | Version | ${url}api/version |
+            | Greeting | ${url}api/greeting?name=ProServe |
+
+            _This environment is destroyed automatically when the PR is closed._`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }
