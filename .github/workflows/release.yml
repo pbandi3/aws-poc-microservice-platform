@@ -23,23 +23,8 @@ jobs:
     uses: ./.github/workflows/_build-test.yml
 
   version:
-    name: Compute release version
     needs: test
-    runs-on: ubuntu-latest
-    outputs:
-      semver: ${{ steps.gitversion.outputs.semVer }}
-      release: ${{ steps.gitversion.outputs.majorMinorPatch }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3
-        with:
-          versionSpec: '6.x'
-      - name: Determine version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v3
+    uses: ./.github/workflows/_version.yml
 
   deploy:
     name: Deploy to prod
@@ -53,7 +38,7 @@ jobs:
         uses: ./.github/actions/deploy
         with:
           environment: prod
-          app-version: ${{ needs.version.outputs.release }}
+          app-version: ${{ needs.version.outputs.majorMinorPatch }}
           aws-region: ${{ env.AWS_REGION }}
           role-arn: ${{ secrets.AWS_ROLE_ARN }}
       - name: Smoke tests (live)
@@ -64,7 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="v${{ needs.version.outputs.release }}"
+          VERSION="v${{ needs.version.outputs.majorMinorPatch }}"
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
             echo "Tag $VERSION already exists; skipping release creation."
           else
@@ -77,5 +62,5 @@ jobs:
       - name: Summary
         run: |
           echo "### Production release" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: \`v${{ needs.version.outputs.release }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`v${{ needs.version.outputs.majorMinorPatch }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: ${{ steps.deploy.outputs.api-url }}" >> "$GITHUB_STEP_SUMMARY"

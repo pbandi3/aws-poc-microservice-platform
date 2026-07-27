@@ -1,0 +1,66 @@
+# Reusable workflow: computes the SemVer for the current ref using GitVersion.
+# Invokes the GitVersion .NET tool directly (via /showvariable) instead of the
+# gittools action, whose opaque JSON parsing is prone to "Output: undefined" failures.
+name: Compute Version
+
+on:
+  workflow_call:
+    outputs:
+      semver:
+        description: "Full semantic version (may include a pre-release label)."
+        value: ${{ jobs.version.outputs.semver }}
+      majorMinorPatch:
+        description: "Stable MAJOR.MINOR.PATCH (used for release tags)."
+        value: ${{ jobs.version.outputs.majorMinorPatch }}
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      semver: ${{ steps.gv.outputs.semver }}
+      majorMinorPatch: ${{ steps.gv.outputs.majorMinorPatch }}
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # `push` events check out a detached HEAD; give GitVersion a concrete branch to reason about.
+      - name: Ensure named branch
+        run: git checkout -B "${{ github.ref_name }}"
+
+      # Avoids LibGit2Sharp "repository path is not owned by current user" crashes.
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install GitVersion tool
+        run: dotnet tool install --global GitVersion.Tool --version '6.*'
+
+      - name: Compute version
+        id: gv
+        run: |
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          set +e
+          SEMVER=$(dotnet-gitversion /showvariable SemVer /nofetch 2> gv-semver.log)
+          MMP=$(dotnet-gitversion /showvariable MajorMinorPatch /nofetch 2> gv-mmp.log)
+          set -e
+          if [ -z "$SEMVER" ] || [ -z "$MMP" ]; then
+            echo "::group::GitVersion diagnostics"
+            cat gv-semver.log gv-mmp.log 2>/dev/null || true
+            dotnet-gitversion /nofetch || true
+            echo "::endgroup::"
+            echo "::error::GitVersion produced empty output"
+            exit 1
+          fi
+          echo "Computed SemVer=$SEMVER MajorMinorPatch=$MMP"
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "majorMinorPatch=$MMP" >> "$GITHUB_OUTPUT"
