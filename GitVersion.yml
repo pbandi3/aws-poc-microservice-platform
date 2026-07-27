@@ -1,18 +1,19 @@
-# GitVersion 6.x configuration (consumed by gittools/actions@v3 in CI).
-# Extends the built-in GitFlow/v1 workflow and overrides only the pre-release labels,
-# so each branch yields a distinct, self-describing SemVer:
-#   main            -> 1.4.0                 (stable release, tagged v1.4.0)
-#   dev             -> 1.5.0-dev.3           (integration pre-release)
-#   feature/xyz     -> 1.5.0-xyz.2           (labelled with the branch name)
-#   hotfix/abc      -> 1.4.1-beta.1          (patch pre-release off main)
-#   PR builds       -> 1.5.0-PullRequest.42
+# GitVersion 6.x configuration — extends the built-in GitFlow/v1 workflow.
+#
+# The repository is seeded with an initial `v1.0.0` git tag (see docs/AWS_SETUP.md / push
+# instructions). GitVersion derives every subsequent version from tags + branch, producing
+# a distinct, self-describing SemVer per branch:
+#   main         -> 1.1.0            (stable; tagged vX.Y.Z by the release workflow)
+#   dev          -> 1.1.0-dev.3      (integration pre-release)
+#   feature/xyz  -> 1.1.0-xyz.2      (labelled with the branch name)
+#   hotfix/abc   -> 1.0.1-beta.1     (patch pre-release off main)
+#
+# NOTE: `next-version` is intentionally NOT used — it activates the ConfiguredNextVersion
+# strategy which fails strict SemVer parsing on GitVersion 6.x. Seeding a git tag is the
+# officially recommended alternative.
 workflow: GitFlow/v1
-next-version: 1.0.0
-tag-prefix: '[vV]'
 
 branches:
-  main:
-    label: ''
   develop:
     # Matches a branch literally named `dev` (as well as develop/development).
     regex: ^dev(elop)?(ment)?$

@@ -49,16 +49,16 @@ jobs:
         id: gv
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"
-          set +e
-          SEMVER=$(dotnet-gitversion /showvariable SemVer /nofetch 2> gv-semver.log)
-          MMP=$(dotnet-gitversion /showvariable MajorMinorPatch /nofetch 2> gv-mmp.log)
-          set -e
-          if [ -z "$SEMVER" ] || [ -z "$MMP" ]; then
-            echo "::group::GitVersion diagnostics"
-            cat gv-semver.log gv-mmp.log 2>/dev/null || true
-            dotnet-gitversion /nofetch || true
-            echo "::endgroup::"
-            echo "::error::GitVersion produced empty output"
+          # Write the version data to a FILE. GitVersion sends its INFO logs to stdout,
+          # so capturing stdout directly would corrupt the parsed value; the file is clean JSON.
+          dotnet-gitversion /output file /outputfile gitversion.json /nofetch
+          echo "::group::GitVersion output"
+          cat gitversion.json
+          echo "::endgroup::"
+          SEMVER=$(jq -r '.SemVer' gitversion.json)
+          MMP=$(jq -r '.MajorMinorPatch' gitversion.json)
+          if [ -z "$SEMVER" ] || [ "$SEMVER" = "null" ] || [ -z "$MMP" ] || [ "$MMP" = "null" ]; then
+            echo "::error::GitVersion did not produce a valid version"
             exit 1
           fi
           echo "Computed SemVer=$SEMVER MajorMinorPatch=$MMP"

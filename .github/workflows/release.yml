@@ -50,9 +50,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="v${{ needs.version.outputs.majorMinorPatch }}"
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "Tag $VERSION already exists; skipping release creation."
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists; skipping."
           else
+            # Creates the tag if absent, or reuses an existing (e.g. seeded) tag.
             gh release create "$VERSION" \
               --title "$VERSION" \
               --target "${{ github.sha }}" \
