@@ -1,0 +1,20 @@
+{
+  "_comment": "Trust policy for the PROD deploy role. Assumable ONLY from GitHub jobs that run in the protected 'prod' Environment (sub claim is repo:ORG/REPO:environment:prod). This isolates production credentials from PR/feature builds even though everything shares one AWS account.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "GitHubActionsOIDCProdEnvironmentOnly",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::219193354119:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": "repo:pbandi3/aws-poc-microservice-platform:environment:prod"
+        }
+      }
+    }
+  ]
+}

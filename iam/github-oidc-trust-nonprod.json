@@ -1,0 +1,22 @@
+{
+  "_comment": "Trust policy for the NON-PROD deploy role (dev, ephemeral PR envs, cleanup). Assumable from any ref/environment in this repo. Replace the account id if you fork.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "GitHubActionsOIDCNonProd",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::219193354119:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:pbandi3/aws-poc-microservice-platform:*"
+        }
+      }
+    }
+  ]
+}
