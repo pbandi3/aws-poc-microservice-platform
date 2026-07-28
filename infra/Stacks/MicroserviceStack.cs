@@ -43,7 +43,11 @@ public sealed class MicroserviceStack : Stack
         var assetPath =
             System.Environment.GetEnvironmentVariable(props.AssetPathEnvVar) ?? props.DefaultAssetPath;
 
-        var function = new Function(this, "Function", new FunctionProps
+        // Construct id is intentionally "ApiFunction" (not the service name): the greeting service
+        // was originally deployed with this id, so keeping it means CloudFormation updates the
+        // existing Lambda in place instead of trying to create a duplicate physical name.
+        // For new services (orders) the id is irrelevant since their stack is created fresh.
+        var function = new Function(this, "ApiFunction", new FunctionProps
         {
             FunctionName = $"{props.ResourcePrefix}-{props.EnvironmentName}",
             Runtime = Runtime.DOTNET_8,
