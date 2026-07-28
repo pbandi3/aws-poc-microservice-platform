@@ -29,11 +29,21 @@ set -euo pipefail
 AWS_REGION="${AWS_REGION:-us-east-1}"
 GITHUB_ORG="${GITHUB_ORG:-pbandi3}"
 GITHUB_REPO="${GITHUB_REPO:-aws-poc-microservice-platform}"
+# GitHub issues OIDC tokens for THIS repo with IMMUTABLE numeric ids in the subject claim,
+# e.g. repo:pbandi3@309149007/aws-poc-microservice-platform@1314266439:environment:dev.
+# The trust policies must match that exact form (the plain repo:ORG/REPO:... form does NOT
+# match). We also allow the plain form as a fallback in case GitHub emits it.
+GITHUB_ORG_ID="${GITHUB_ORG_ID:-309149007}"
+GITHUB_REPO_ID="${GITHUB_REPO_ID:-1314266439}"
 NONPROD_ROLE_NAME="${NONPROD_ROLE_NAME:-GitHubActionsDeployRole}"
 PROD_ROLE_NAME="${PROD_ROLE_NAME:-GitHubActionsProdDeployRole}"
 PROD_ENVIRONMENT="${PROD_ENVIRONMENT:-prod}"
 
 OIDC_HOST="token.actions.githubusercontent.com"
+
+# Subject prefixes: immutable (authoritative) + plain (fallback).
+SUBJECT_IMMUTABLE="repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}"
+SUBJECT_PLAIN="repo:${GITHUB_ORG}/${GITHUB_REPO}"
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; }
@@ -82,7 +92,7 @@ NONPROD_TRUST="$(cat <<JSON
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": { "${OIDC_HOST}:aud": "sts.amazonaws.com" },
-      "StringLike": { "${OIDC_HOST}:sub": "repo:${GITHUB_ORG}/${GITHUB_REPO}:*" }
+      "StringLike": { "${OIDC_HOST}:sub": ["${SUBJECT_IMMUTABLE}:*", "${SUBJECT_PLAIN}:*"] }
     }
   }]
 }
@@ -103,7 +113,10 @@ PROD_TRUST="$(cat <<JSON
     "Condition": {
       "StringEquals": {
         "${OIDC_HOST}:aud": "sts.amazonaws.com",
-        "${OIDC_HOST}:sub": "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:${PROD_ENVIRONMENT}"
+        "${OIDC_HOST}:sub": [
+          "${SUBJECT_IMMUTABLE}:environment:${PROD_ENVIRONMENT}",
+          "${SUBJECT_PLAIN}:environment:${PROD_ENVIRONMENT}"
+        ]
       }
     }
   }]

@@ -11,6 +11,13 @@ separate non-prod and prod AWS accounts while using a single free-tier account f
 | **Non-prod** | `GitHubActionsDeployRole` | ephemeral PR envs, `dev`, cleanup | `repo:ORG/REPO:*` (any ref/environment) |
 | **Prod** | `GitHubActionsProdDeployRole` | production releases only | `repo:ORG/REPO:environment:prod` (only the protected `prod` environment) |
 
+> **Important — immutable subject ids.** GitHub issues this repo's OIDC tokens with **immutable
+> numeric ids** in the subject claim, e.g.
+> `repo:pbandi3@309149007/aws-poc-microservice-platform@1314266439:environment:dev`. The plain
+> `repo:ORG/REPO:...` form does **not** match, so both trust policies (`iam/github-oidc-trust-*.json`)
+> match the immutable form (with the plain form kept as a fallback). If you fork/rename the repo,
+> update the numeric ids in the `iam/` files and `scripts/*.sh` (`GITHUB_ORG_ID`/`GITHUB_REPO_ID`).
+
 The prod role's trust policy **rejects any OIDC token** whose subject is not
 `repo:ORG/REPO:environment:prod`. A feature or PR build — which never runs in the `prod`
 environment — physically cannot assume production credentials, even though everything shares one

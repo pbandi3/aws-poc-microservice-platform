@@ -1,5 +1,4 @@
 {
-  "_comment": "Trust policy for the NON-PROD deploy role (dev, ephemeral PR envs, cleanup). Assumable from any ref/environment in this repo. Replace the account id if you fork.",
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -14,7 +13,10 @@
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:pbandi3/aws-poc-microservice-platform:*"
+          "token.actions.githubusercontent.com:sub": [
+            "repo:pbandi3@309149007/aws-poc-microservice-platform@1314266439:*",
+            "repo:pbandi3/aws-poc-microservice-platform:*"
+          ]
         }
       }
     }

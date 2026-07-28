@@ -16,9 +16,11 @@ on:
         description: "true if shared infra/pipeline changed (implies deploy all)."
         value: ${{ jobs.changes.outputs.infra }}
 
+# Only `contents: read` is required: with full history (fetch-depth: 0) paths-filter uses a
+# git diff, so no `pull-requests` scope is needed. Keeping this minimal also means the reusable
+# workflow never requests more than a caller grants (push callers don't grant pull-requests).
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   changes:
