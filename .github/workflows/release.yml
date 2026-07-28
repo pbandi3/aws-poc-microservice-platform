@@ -1,6 +1,6 @@
 # Production release on every push to main (dev->main promotion or hotfix->main).
-# Computes a stable SemVer, deploys prod, runs live smoke tests, then tags the commit
-# and publishes a GitHub Release. This is the "SemVer + release" half of the demo.
+# Computes a stable SemVer, deploys ONLY the changed microservice(s) to prod, runs live
+# smoke tests, then tags the commit and publishes a GitHub Release.
 name: Release
 
 on:
@@ -22,29 +22,52 @@ jobs:
   test:
     uses: ./.github/workflows/_build-test.yml
 
+  changes:
+    uses: ./.github/workflows/_changes.yml
+
   version:
     needs: test
     uses: ./.github/workflows/_version.yml
 
   deploy:
     name: Deploy to prod
-    needs: version
+    needs: [version, changes]
     runs-on: ubuntu-latest
     environment: prod
+    env:
+      DEPLOY_GREETING: ${{ needs.changes.outputs.greeting == 'true' || needs.changes.outputs.infra == 'true' }}
+      DEPLOY_ORDERS: ${{ needs.changes.outputs.orders == 'true' || needs.changes.outputs.infra == 'true' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy prod environment
-        id: deploy
+
+      - name: Deploy greeting
+        id: deploy-greeting
+        if: env.DEPLOY_GREETING == 'true'
         uses: ./.github/actions/deploy
         with:
+          service: greeting
           environment: prod
           app-version: ${{ needs.version.outputs.majorMinorPatch }}
           aws-region: ${{ env.AWS_REGION }}
           role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Deploy orders
+        id: deploy-orders
+        if: env.DEPLOY_ORDERS == 'true'
+        uses: ./.github/actions/deploy
+        with:
+          service: orders
+          environment: prod
+          app-version: ${{ needs.version.outputs.majorMinorPatch }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
       - name: Smoke tests (live)
         env:
-          API_BASE_URL: ${{ steps.deploy.outputs.api-url }}
+          API_BASE_URL: ${{ steps.deploy-greeting.outputs.api-url }}
+          ORDERS_BASE_URL: ${{ steps.deploy-orders.outputs.api-url }}
         run: dotnet test tests/Api.SmokeTests/Api.SmokeTests.csproj -c Release
+
       - name: Tag and publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,15 +76,16 @@ jobs:
           if gh release view "$VERSION" >/dev/null 2>&1; then
             echo "Release $VERSION already exists; skipping."
           else
-            # Creates the tag if absent, or reuses an existing (e.g. seeded) tag.
             gh release create "$VERSION" \
               --title "$VERSION" \
               --target "${{ github.sha }}" \
               --generate-notes \
-              --notes "Automated production release $VERSION deployed to ${{ steps.deploy.outputs.api-url }}"
+              --notes "Automated production release $VERSION. greeting=${{ steps.deploy-greeting.outputs.api-url || 'unchanged' }} orders=${{ steps.deploy-orders.outputs.api-url || 'unchanged' }}"
           fi
+
       - name: Summary
         run: |
           echo "### Production release" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: \`v${{ needs.version.outputs.majorMinorPatch }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: ${{ steps.deploy.outputs.api-url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- greeting: ${{ steps.deploy-greeting.outputs.api-url || 'unchanged (skipped)' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- orders: ${{ steps.deploy-orders.outputs.api-url || 'unchanged (skipped)' }}" >> "$GITHUB_STEP_SUMMARY"

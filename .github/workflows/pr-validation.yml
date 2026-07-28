@@ -1,7 +1,8 @@
 # Runs on every pull request (feature/*, hotfix/*, dev->main, etc.).
 # 1. Build + unit/integration/infra tests (fast gate).
-# 2. Spin up an ephemeral, PR-scoped environment (pr-<number>).
-# 3. Run live smoke tests against it, then comment the URL on the PR.
+# 2. Detect which microservice(s) changed.
+# 3. Spin up an ephemeral, PR-scoped environment (pr-<number>) for ONLY the changed services.
+# 4. Run live smoke tests against them, then comment the URL(s) on the PR.
 # The environment is torn down by pr-cleanup.yml when the PR is closed.
 name: PR Validation
 
@@ -25,19 +26,39 @@ jobs:
   test:
     uses: ./.github/workflows/_build-test.yml
 
+  changes:
+    uses: ./.github/workflows/_changes.yml
+
   ephemeral:
     name: Ephemeral Env + E2E Smoke
-    needs: test
+    needs: [test, changes]
     runs-on: ubuntu-latest
     environment: ephemeral
+    env:
+      # Shared infra changes force a full (both-service) deploy.
+      DEPLOY_GREETING: ${{ needs.changes.outputs.greeting == 'true' || needs.changes.outputs.infra == 'true' }}
+      DEPLOY_ORDERS: ${{ needs.changes.outputs.orders == 'true' || needs.changes.outputs.infra == 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy ephemeral environment
-        id: deploy
+      - name: Deploy greeting (ephemeral)
+        id: deploy-greeting
+        if: env.DEPLOY_GREETING == 'true'
         uses: ./.github/actions/deploy
         with:
+          service: greeting
+          environment: pr-${{ github.event.pull_request.number }}
+          app-version: 0.0.0-pr.${{ github.event.pull_request.number }}.${{ github.run_number }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Deploy orders (ephemeral)
+        id: deploy-orders
+        if: env.DEPLOY_ORDERS == 'true'
+        uses: ./.github/actions/deploy
+        with:
+          service: orders
           environment: pr-${{ github.event.pull_request.number }}
           app-version: 0.0.0-pr.${{ github.event.pull_request.number }}.${{ github.run_number }}
           aws-region: ${{ env.AWS_REGION }}
@@ -45,26 +66,37 @@ jobs:
 
       - name: Smoke tests (live)
         env:
-          API_BASE_URL: ${{ steps.deploy.outputs.api-url }}
+          API_BASE_URL: ${{ steps.deploy-greeting.outputs.api-url }}
+          ORDERS_BASE_URL: ${{ steps.deploy-orders.outputs.api-url }}
         run: dotnet test tests/Api.SmokeTests/Api.SmokeTests.csproj -c Release
 
-      - name: Comment ephemeral URL on PR
-        if: always() && steps.deploy.outputs.api-url != ''
+      - name: Comment ephemeral URLs on PR
+        if: always() && (steps.deploy-greeting.outputs.api-url != '' || steps.deploy-orders.outputs.api-url != '')
         uses: actions/github-script@v7
         with:
           script: |
-            const url = '${{ steps.deploy.outputs.api-url }}';
+            const greeting = '${{ steps.deploy-greeting.outputs.api-url }}';
+            const orders = '${{ steps.deploy-orders.outputs.api-url }}';
             const marker = '<!-- ephemeral-env -->';
+            const rows = [];
+            if (greeting) {
+              rows.push(`| greeting | \`${greeting}\` |`);
+              rows.push(`| greeting · health | ${greeting}health |`);
+              rows.push(`| greeting · greeting | ${greeting}api/greeting?name=ProServe |`);
+            }
+            if (orders) {
+              rows.push(`| orders | \`${orders}\` |`);
+              rows.push(`| orders · health | ${orders}health |`);
+              rows.push(`| orders · list | ${orders}api/orders |`);
+            }
             const body = `${marker}
-            ### Ephemeral environment ready
+            ### Ephemeral environment ready (\`pr-${{ github.event.pull_request.number }}\`)
 
-            | Item | Value |
-            |------|-------|
-            | Environment | \`pr-${{ github.event.pull_request.number }}\` |
-            | Base URL | ${url} |
-            | Health | ${url}health |
-            | Version | ${url}api/version |
-            | Greeting | ${url}api/greeting?name=ProServe |
+            Only the microservices changed in this PR were (re)deployed.
+
+            | Service | Value |
+            |---------|-------|
+            ${rows.join('\n')}
 
             _This environment is destroyed automatically when the PR is closed._`;
 

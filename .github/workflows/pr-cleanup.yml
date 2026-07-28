@@ -1,5 +1,6 @@
 # Destroys the ephemeral environment when a PR is closed (merged or abandoned),
-# keeping the account clean and cost at zero for stale PRs.
+# keeping the account clean and cost at zero for stale PRs. Tears down every service
+# stack for the PR; stacks that were never deployed are skipped by CDK.
 name: PR Cleanup
 
 on:
@@ -38,10 +39,12 @@ jobs:
       - name: Install AWS CDK CLI
         run: npm install -g aws-cdk@2
 
-      # `cdk destroy` synthesizes the app, and Code.FromAsset requires the asset path to
-      # exist. Publishing first guarantees a valid synth without a heavy build.
-      - name: Publish Lambda artifact (for synth)
-        run: dotnet publish src/Api/Api.csproj -c Release -o ./publish
+      # `cdk destroy` synthesizes the app, and Code.FromAsset requires each asset path to
+      # exist. Publishing both services first guarantees a valid synth of every stack.
+      - name: Publish Lambda artifacts (for synth)
+        run: |
+          dotnet publish src/Api/Api.csproj -c Release -o ./publish/greeting
+          dotnet publish src/OrdersApi/OrdersApi.csproj -c Release -o ./publish/orders
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -49,12 +52,14 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: CDK destroy
+      - name: CDK destroy (all services for this PR)
         working-directory: infra
         env:
-          LAMBDA_ASSET_PATH: ../publish
+          LAMBDA_ASSET_PATH_GREETING: ../publish/greeting
+          LAMBDA_ASSET_PATH_ORDERS: ../publish/orders
         run: |
-          cdk destroy \
+          cdk destroy --all \
             --force \
             -c environment=pr-${{ github.event.pull_request.number }} \
-            -c appVersion=0.0.0-pr.${{ github.event.pull_request.number }}
+            -c appVersion=0.0.0-pr.${{ github.event.pull_request.number }} \
+            -c service=all

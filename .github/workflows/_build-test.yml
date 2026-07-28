@@ -28,19 +28,34 @@ jobs:
       - name: Build
         run: dotnet build PocMicroservice.sln -c Release --no-restore
 
-      - name: Unit tests
+      - name: Unit tests (greeting)
         run: >
           dotnet test tests/Api.UnitTests/Api.UnitTests.csproj
           -c Release --no-build
-          --logger "trx;LogFileName=unit.trx"
+          --logger "trx;LogFileName=unit-greeting.trx"
           --results-directory ./TestResults
           --collect:"XPlat Code Coverage"
 
-      - name: Integration tests (in-memory)
+      - name: Unit tests (orders)
+        run: >
+          dotnet test tests/OrdersApi.UnitTests/OrdersApi.UnitTests.csproj
+          -c Release --no-build
+          --logger "trx;LogFileName=unit-orders.trx"
+          --results-directory ./TestResults
+          --collect:"XPlat Code Coverage"
+
+      - name: Integration tests (greeting, in-memory)
         run: >
           dotnet test tests/Api.IntegrationTests/Api.IntegrationTests.csproj
           -c Release --no-build
-          --logger "trx;LogFileName=integration.trx"
+          --logger "trx;LogFileName=integration-greeting.trx"
+          --results-directory ./TestResults
+
+      - name: Integration tests (orders, in-memory)
+        run: >
+          dotnet test tests/OrdersApi.IntegrationTests/OrdersApi.IntegrationTests.csproj
+          -c Release --no-build
+          --logger "trx;LogFileName=integration-orders.trx"
           --results-directory ./TestResults
 
       - name: Infrastructure tests (CDK assertions)
