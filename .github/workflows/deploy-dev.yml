@@ -1,5 +1,6 @@
 # Continuous deployment to the persistent `dev` environment on every push to dev
-# (i.e. when a feature PR merges). Computes a pre-release SemVer via GitVersion.
+# (i.e. when a feature PR merges). Computes a pre-release SemVer via GitVersion and
+# deploys ONLY the microservice(s) that changed in the merge.
 name: Deploy Dev
 
 on:
@@ -21,31 +22,55 @@ jobs:
   test:
     uses: ./.github/workflows/_build-test.yml
 
+  changes:
+    uses: ./.github/workflows/_changes.yml
+
   version:
     needs: test
     uses: ./.github/workflows/_version.yml
 
   deploy:
     name: Deploy to dev
-    needs: version
+    needs: [version, changes]
     runs-on: ubuntu-latest
     environment: dev
+    env:
+      DEPLOY_GREETING: ${{ needs.changes.outputs.greeting == 'true' || needs.changes.outputs.infra == 'true' }}
+      DEPLOY_ORDERS: ${{ needs.changes.outputs.orders == 'true' || needs.changes.outputs.infra == 'true' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy dev environment
-        id: deploy
+
+      - name: Deploy greeting
+        id: deploy-greeting
+        if: env.DEPLOY_GREETING == 'true'
         uses: ./.github/actions/deploy
         with:
+          service: greeting
           environment: dev
           app-version: ${{ needs.version.outputs.semver }}
           aws-region: ${{ env.AWS_REGION }}
           role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Deploy orders
+        id: deploy-orders
+        if: env.DEPLOY_ORDERS == 'true'
+        uses: ./.github/actions/deploy
+        with:
+          service: orders
+          environment: dev
+          app-version: ${{ needs.version.outputs.semver }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-arn: ${{ secrets.AWS_ROLE_ARN }}
+
       - name: Smoke tests (live)
         env:
-          API_BASE_URL: ${{ steps.deploy.outputs.api-url }}
+          API_BASE_URL: ${{ steps.deploy-greeting.outputs.api-url }}
+          ORDERS_BASE_URL: ${{ steps.deploy-orders.outputs.api-url }}
         run: dotnet test tests/Api.SmokeTests/Api.SmokeTests.csproj -c Release
+
       - name: Summary
         run: |
           echo "### Dev deployment" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: \`${{ needs.version.outputs.semver }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: ${{ steps.deploy.outputs.api-url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- greeting: ${{ steps.deploy-greeting.outputs.api-url || 'unchanged (skipped)' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- orders: ${{ steps.deploy-orders.outputs.api-url || 'unchanged (skipped)' }}" >> "$GITHUB_STEP_SUMMARY"

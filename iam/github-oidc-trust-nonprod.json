@@ -2,7 +2,7 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "GitHubActionsOIDC",
+      "Sid": "GitHubActionsOIDCNonProd",
       "Effect": "Allow",
       "Principal": {
         "Federated": "arn:aws:iam::219193354119:oidc-provider/token.actions.githubusercontent.com"

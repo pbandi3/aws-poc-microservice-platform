@@ -27,6 +27,12 @@ set -euo pipefail
 AWS_REGION="${AWS_REGION:-us-east-1}"
 GITHUB_ORG="${GITHUB_ORG:-pbandi3}"
 GITHUB_REPO="${GITHUB_REPO:-aws-poc-microservice-platform}"
+# GitHub emits OIDC subjects for this repo using IMMUTABLE numeric ids, e.g.
+# repo:pbandi3@309149007/aws-poc-microservice-platform@1314266439:ref:refs/heads/main
+# The trust policy must match that form (plain repo:ORG/REPO does NOT match); we also allow
+# the plain form as a fallback.
+GITHUB_ORG_ID="${GITHUB_ORG_ID:-309149007}"
+GITHUB_REPO_ID="${GITHUB_REPO_ID:-1314266439}"
 ROLE_NAME="${ROLE_NAME:-GitHubActionsDeployRole}"
 PERMISSIONS_MODE="${PERMISSIONS_MODE:-broad}"
 
@@ -70,7 +76,10 @@ TRUST_POLICY="$(cat <<JSON
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": { "${OIDC_HOST}:aud": "sts.amazonaws.com" },
-        "StringLike": { "${OIDC_HOST}:sub": "repo:${GITHUB_ORG}/${GITHUB_REPO}:*" }
+        "StringLike": { "${OIDC_HOST}:sub": [
+          "repo:${GITHUB_ORG}@${GITHUB_ORG_ID}/${GITHUB_REPO}@${GITHUB_REPO_ID}:*",
+          "repo:${GITHUB_ORG}/${GITHUB_REPO}:*"
+        ] }
       }
     }
   ]

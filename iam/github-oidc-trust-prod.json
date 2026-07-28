@@ -2,7 +2,7 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "GitHubActionsOIDC",
+      "Sid": "GitHubActionsOIDCProdEnvironmentOnly",
       "Effect": "Allow",
       "Principal": {
         "Federated": "arn:aws:iam::219193354119:oidc-provider/token.actions.githubusercontent.com"
@@ -10,12 +10,10 @@
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           "token.actions.githubusercontent.com:sub": [
-            "repo:pbandi3@309149007/aws-poc-microservice-platform@1314266439:*",
-            "repo:pbandi3/aws-poc-microservice-platform:*"
+            "repo:pbandi3@309149007/aws-poc-microservice-platform@1314266439:environment:prod",
+            "repo:pbandi3/aws-poc-microservice-platform:environment:prod"
           ]
         }
       }

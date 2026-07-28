@@ -5,10 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AWSProjectType>Lambda</AWSProjectType>
-    <!-- Assembly name doubles as the Lambda handler when using AddAWSLambdaHosting
-         against the .NET 8 managed runtime. Keep in sync with infra/Stacks/MicroserviceStack.cs. -->
-    <AssemblyName>Api</AssemblyName>
-    <RootNamespace>PocApi</RootNamespace>
+    <!-- Assembly name doubles as the Lambda handler for the .NET 8 managed runtime.
+         Keep in sync with infra/Program.cs (HandlerAssembly = "OrdersApi"). -->
+    <AssemblyName>OrdersApi</AssemblyName>
+    <RootNamespace>OrdersApi</RootNamespace>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
   </PropertyGroup>
 

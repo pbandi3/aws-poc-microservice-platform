@@ -69,10 +69,14 @@ before `prod`). They work without configuration if you skip this.
 ## Teardown
 
 - Ephemeral PR stacks are destroyed automatically when the PR closes.
-- To remove `dev`/`prod` manually:
+- To remove `dev`/`prod` manually (both services):
   ```bash
+  dotnet publish src/Api/Api.csproj        -c Release -o ./publish/greeting
+  dotnet publish src/OrdersApi/OrdersApi.csproj -c Release -o ./publish/orders
   cd infra
-  LAMBDA_ASSET_PATH=../publish npx cdk destroy -c environment=dev
-  LAMBDA_ASSET_PATH=../publish npx cdk destroy -c environment=prod
+  LAMBDA_ASSET_PATH_GREETING=../publish/greeting LAMBDA_ASSET_PATH_ORDERS=../publish/orders \
+    npx cdk destroy --all -c environment=dev  -c service=all
+  LAMBDA_ASSET_PATH_GREETING=../publish/greeting LAMBDA_ASSET_PATH_ORDERS=../publish/orders \
+    npx cdk destroy --all -c environment=prod -c service=all
   ```
 - To remove everything: also delete the `CDKToolkit` stack and the IAM role/OIDC provider.

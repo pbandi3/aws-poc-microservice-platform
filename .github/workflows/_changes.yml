@@ -1,0 +1,56 @@
+# Reusable workflow: detects which microservice(s) changed so downstream jobs can deploy
+# selectively. `infra` acts as a "deploy everything" signal: shared infrastructure, the
+# pipeline itself, or the solution/versioning config affects every service.
+name: Detect Changes
+
+on:
+  workflow_call:
+    outputs:
+      greeting:
+        description: "true if the greeting service changed."
+        value: ${{ jobs.changes.outputs.greeting }}
+      orders:
+        description: "true if the orders service changed."
+        value: ${{ jobs.changes.outputs.orders }}
+      infra:
+        description: "true if shared infra/pipeline changed (implies deploy all)."
+        value: ${{ jobs.changes.outputs.infra }}
+
+# Only `contents: read` is required: with full history (fetch-depth: 0) paths-filter uses a
+# git diff, so no `pull-requests` scope is needed. Keeping this minimal also means the reusable
+# workflow never requests more than a caller grants (push callers don't grant pull-requests).
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      greeting: ${{ steps.filter.outputs.greeting }}
+      orders: ${{ steps.filter.outputs.orders }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Path filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            greeting:
+              - 'src/Api/**'
+              - 'tests/Api.UnitTests/**'
+              - 'tests/Api.IntegrationTests/**'
+            orders:
+              - 'src/OrdersApi/**'
+              - 'tests/OrdersApi.UnitTests/**'
+              - 'tests/OrdersApi.IntegrationTests/**'
+            infra:
+              - 'infra/**'
+              - '.github/**'
+              - 'GitVersion.yml'
+              - 'PocMicroservice.sln'

@@ -1,9 +1,13 @@
-name: Deploy Environment
+name: Deploy Microservice
 description: >
-  Publishes the .NET Lambda artifact, deploys the environment-scoped CDK stack via GitHub
-  OIDC, and returns the resulting API base URL. Reused by ephemeral, dev, and prod deploys.
+  Publishes a single microservice's .NET Lambda artifact and deploys ONLY that service's
+  CDK stack via GitHub OIDC, then returns its API base URL. Deploying one stack at a time is
+  what enables selective, per-service deployments across the pipeline.
 
 inputs:
+  service:
+    description: "Microservice to deploy: greeting | orders."
+    required: true
   environment:
     description: "Environment name (dev, prod, pr-123)."
     required: true
@@ -14,7 +18,7 @@ inputs:
     description: "Target AWS region."
     required: true
   role-arn:
-    description: "IAM role ARN assumed via GitHub OIDC."
+    description: "IAM role ARN assumed via GitHub OIDC (environment-scoped)."
     required: true
   dotnet-version:
     description: ".NET SDK version."
@@ -23,7 +27,7 @@ inputs:
 
 outputs:
   api-url:
-    description: "Base URL of the deployed API."
+    description: "Base URL of the deployed service."
     value: ${{ steps.resolve-url.outputs.api_url }}
 
 runs:
@@ -43,9 +47,28 @@ runs:
       shell: bash
       run: npm install -g aws-cdk@2
 
-    - name: Publish Lambda artifact
+    - name: Resolve service coordinates
+      id: coords
       shell: bash
-      run: dotnet publish src/Api/Api.csproj -c Release -o ./publish
+      run: |
+        case "${{ inputs.service }}" in
+          greeting)
+            echo "project=src/Api/Api.csproj" >> "$GITHUB_OUTPUT"
+            echo "stack=PocApiStack-${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+            ;;
+          orders)
+            echo "project=src/OrdersApi/OrdersApi.csproj" >> "$GITHUB_OUTPUT"
+            echo "stack=PocOrdersStack-${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            echo "::error::Unknown service '${{ inputs.service }}' (expected greeting|orders)"
+            exit 1
+            ;;
+        esac
+
+    - name: Publish Lambda artifact (${{ inputs.service }})
+      shell: bash
+      run: dotnet publish ${{ steps.coords.outputs.project }} -c Release -o ./publish/${{ inputs.service }}
 
     - name: Configure AWS credentials (OIDC)
       uses: aws-actions/configure-aws-credentials@v4
@@ -53,28 +76,32 @@ runs:
         role-to-assume: ${{ inputs.role-arn }}
         aws-region: ${{ inputs.aws-region }}
 
-    - name: CDK deploy
+    - name: CDK deploy (${{ inputs.service }} only)
       shell: bash
       working-directory: infra
       env:
-        LAMBDA_ASSET_PATH: ../publish
+        # Asset paths are relative to the CDK working directory (infra/). Only the stack being
+        # synthesized (-c service=...) reads its asset, so publishing one service is sufficient.
+        LAMBDA_ASSET_PATH_GREETING: ../publish/greeting
+        LAMBDA_ASSET_PATH_ORDERS: ../publish/orders
       run: |
-        cdk deploy \
+        cdk deploy "${{ steps.coords.outputs.stack }}" \
           --require-approval never \
           -c environment=${{ inputs.environment }} \
-          -c appVersion=${{ inputs.app-version }}
+          -c appVersion=${{ inputs.app-version }} \
+          -c service=${{ inputs.service }}
 
     - name: Resolve API URL
       id: resolve-url
       shell: bash
       run: |
         URL=$(aws cloudformation describe-stacks \
-          --stack-name "PocApiStack-${{ inputs.environment }}" \
+          --stack-name "${{ steps.coords.outputs.stack }}" \
           --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
           --output text)
         if [ -z "$URL" ] || [ "$URL" = "None" ]; then
-          echo "::error::Could not resolve ApiUrl output for PocApiStack-${{ inputs.environment }}"
+          echo "::error::Could not resolve ApiUrl output for ${{ steps.coords.outputs.stack }}"
           exit 1
         fi
         echo "api_url=$URL" >> "$GITHUB_OUTPUT"
-        echo "Deployed '${{ inputs.environment }}' (version ${{ inputs.app-version }}) -> $URL"
+        echo "Deployed '${{ inputs.service }}' to '${{ inputs.environment }}' (version ${{ inputs.app-version }}) -> $URL"
