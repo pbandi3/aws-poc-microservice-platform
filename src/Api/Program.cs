@@ -20,6 +20,6 @@ app.MapGet("/api/greeting", (string? name, IGreetingService greetings) =>
 app.MapGet("/api/echo", (string? message) =>
     Results.Ok(new { message = message ?? string.Empty }));
 app.MapGet("/api/farewell", (string? name) =>
-    Results.Ok(new { message = $"Goodbye, {string.IsNullOrWhiteSpace(name) ? "World" : name.Trim()}!" }));
+    Results.Ok(new { message = $"Goodbye, {(string.IsNullOrWhiteSpace(name) ? "World" : name.Trim())}!" }));
 app.Run();
 public partial class Program { }
