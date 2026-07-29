@@ -19,5 +19,7 @@ app.MapGet("/api/greeting", (string? name, IGreetingService greetings) =>
 // feature/echo-endpoint: new capability, live in the PR environment before it reaches prod.
 app.MapGet("/api/echo", (string? message) =>
     Results.Ok(new { message = message ?? string.Empty }));
+app.MapGet("/api/farewell", (string? name) =>
+    Results.Ok(new { message = $"Goodbye, {string.IsNullOrWhiteSpace(name) ? "World" : name.Trim()}!" }));
 app.Run();
 public partial class Program { }
